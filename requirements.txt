@@ -1,0 +1,9 @@
+scikit-learn
+pandas==2.0.0
+numpy==1.26.0
+librosa
+torch
+matplotlib
+soundfile
+pydub
+torchvision
