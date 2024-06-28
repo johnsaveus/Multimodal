@@ -7,3 +7,5 @@ matplotlib
 soundfile
 pydub
 torchvision
+torchaudio
+torch-summary
