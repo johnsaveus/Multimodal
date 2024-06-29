@@ -53,24 +53,27 @@ class Autoencoder(nn.Module):
 
 if __name__ == '__main__':
     dataset = Embedding_dataset(csv_file = 'Data/Autoencoder.csv')
-    dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
-
+    dataloader = DataLoader(dataset, batch_size=248, shuffle=True)
+    
     model = Autoencoder(input_dim = 270, latent_dim = 32)
     # Loss and optimizer
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # Training loop
-    num_epochs = 100
+    num_epochs = 500
     model.train()
 
     for epoch in range(num_epochs):
-        for features  in dataloader:
+        print(epoch)
+        losses = 0
+        for features in dataloader:
             features = features.to(torch.float32)  # Ensure the right data type
             outputs = model(features)
             loss = criterion(outputs, features)
             optimizer.zero_grad()
+            losses+=loss.item()
             loss.backward()
             optimizer.step()
-            print(loss)
-        torch.save(model, 'autoencoder_model.pth')
+        print(losses / len(dataloader))
+    torch.save(model, 'autoencoder_model.pth')

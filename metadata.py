@@ -1,19 +1,14 @@
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 import torch
-import torch.nn as nn
 import librosa
 import numpy as np
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 from cnn_model import Constants
 import os
 import shutil
 from cnn_model import CNNNetwork
 import torch
-from torch.utils.data import DataLoader
-import seaborn as sns
-import matplotlib.pyplot as plt
 import torch.nn.functional as F
 
 def preproccess_mp3_path(root_dir):
@@ -70,7 +65,7 @@ class SpectrogramDataset(Dataset):
 
     def __init__(self, csv_file):
         df = pd.read_csv(csv_file)
-        df = df.iloc[:5]
+        #df = df.iloc[:5]
         self.track_id = df['track_id']
 
     def __len__(self):
@@ -124,12 +119,13 @@ def main():
     model.eval()
     model = model.to(device)
     embeddings = []   
-    for input in loader:
+    for ix, input in enumerate(loader):
+        print(f"Infering {ix}")
         with torch.no_grad():
             fc1_output = F.relu(model.fc1(model.flatten(model.conv4(model.conv3(model.conv2(model.conv1(input)))))))
         embeddings.append(fc1_output)
     embeddings = torch.cat(embeddings, dim=0)
-    df = pd.read_csv('Data/Train_emb.csv').iloc[:5]
+    df = pd.read_csv('Data/Train_emb.csv')
     df = df.drop(['spotify_preview_url', 'spotify_id', 'tags', 'genre'], axis = 1)
     emb_names  = {}
     for i in range(256):
