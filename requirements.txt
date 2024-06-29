@@ -9,3 +9,5 @@ pydub
 torchvision
 torchaudio
 torch-summary
+seaborn
+ace

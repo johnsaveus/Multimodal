@@ -1,9 +1,7 @@
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-import torchaudio
 import torch
 import torch.nn as nn
-from torchsummary import summary
 import librosa
 import numpy as np
 import torch.nn.functional as F
@@ -23,9 +21,6 @@ class SpectrogramDataset(Dataset):
         df = pd.read_csv(csv_file)
         df['Path'] = df['Path'].str.replace(r'\\', '/', regex=True)
         df['Path'] = df['Path'].str.replace(r'\/', '/', regex=True)
-        value_to_remove = "Data/raw/jazz/jazz.00054.wav"
-        df = df[df['Path'] != value_to_remove]
-        df = df.iloc[:5]
         self.wav_path = df['Path']
         self.label = df['Label']
         self._mapping()
@@ -71,13 +66,9 @@ class SpectrogramDataset(Dataset):
         else:
             resize_array[:array.shape[0]] = array
         return resize_array
-    
-def create_data_loader(train_data, batch_size):
-    train_loader = DataLoader(train_data, batch_size = batch_size)
-    return train_loader
 
-BATCH_SIZE = 3
-EPOCHS = 10
+BATCH_SIZE = 32
+EPOCHS = 100
 LEARNING_RATE = 0.001
 
 def train_single_epoch(model, data_loader, loss_fn, optimizer, device):
@@ -106,13 +97,13 @@ def validate_single_epoch(model, data_loader, loss_fn, device):
     print(f" Loss = {epoch_loss / len(data_loader)}")
     return epoch_loss / len(data_loader)
 
-def train(model, data_loader, loss_fn, optimizer, device, epochs):
+def train(model, train_loader,  val_loader, loss_fn, optimizer, device, epochs):
     train_losses = []
     val_losses = []
     for i in range(epochs):
         print(f"Epoch {i+1}")
-        train_loss = train_single_epoch(model, data_loader, loss_fn, optimizer, device)
-        val_loss = validate_single_epoch(model, data_loader, loss_fn, device)
+        train_loss = train_single_epoch(model, train_loader, loss_fn, optimizer, device)
+        val_loss = validate_single_epoch(model, val_loader, loss_fn, device)
         train_losses.append(train_loss)
         val_losses.append(val_loss)
         print("---------------------------")
@@ -171,7 +162,6 @@ class CNNNetwork(nn.Module):
         self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(512, 256)
         self.fc2 = nn.Linear(256,10)
-        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, input_data):
         x = self.conv1(input_data)
@@ -181,28 +171,8 @@ class CNNNetwork(nn.Module):
         x = self.flatten(x)
         x = self.fc1(x)
         logits = self.fc2(F.relu(x))
-        predictions = self.softmax(logits)
-        return predictions
-
-if __name__ == "__main__":
-    torch.manual_seed(42)
-    np.random.seed(42)
-    csv_train = "Data/splits/train.csv"
-    csv_val = "Data/splits/val.csv"
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    train_dataset = SpectrogramDataset(csv_file=csv_train)
-    val_dataset = SpectrogramDataset(csv_file=csv_val)
-    train_loader = create_data_loader(train_dataset, BATCH_SIZE)
-    val_loader = create_data_loader(val_dataset, BATCH_SIZE)
-    cnn = CNNNetwork().to(device)
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(cnn.parameters(),
-                             lr = LEARNING_RATE)
-    train_losses, val_losses = train(cnn, train_loader, loss_fn, optimizer, device, EPOCHS)
-    print(train_losses)
-    print(val_losses)
-    torch.save(cnn, 'cnn.pth')
-
+        return logits
+    
 def plot_losses(train_losses, val_losses, epochs):
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, epochs + 1), train_losses, label='Training Loss')
@@ -215,4 +185,26 @@ def plot_losses(train_losses, val_losses, epochs):
     plt.savefig('Loss Plot')
     plt.show()
 
-plot_losses(train_losses, val_losses, EPOCHS)
+if __name__ == "__main__":
+    torch.manual_seed(42)
+    np.random.seed(42)
+    best_valid = -1000
+    csv_train = "Data/splits/train.csv"
+    csv_val = "Data/splits/val.csv"
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    train_dataset = SpectrogramDataset(csv_file=csv_train)
+    val_dataset = SpectrogramDataset(csv_file=csv_val)
+    train_loader = DataLoader(dataset = train_dataset, batch_size = BATCH_SIZE, shuffle = True)
+    val_loader = DataLoader(dataset = val_dataset, batch_size = BATCH_SIZE, shuffle = False)
+    cnn = CNNNetwork().to(device)
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(cnn.parameters(),
+                             lr = LEARNING_RATE)
+    train_losses, val_losses = train(cnn, train_loader, val_loader, loss_fn, optimizer, device, EPOCHS)
+    print(train_losses)
+    print(val_losses)
+    if val_losses[-1] > best_valid:
+        best_valid = val_losses[-1]
+        torch.save(cnn, 'cnn.pth')
+
+    plot_losses(train_losses, val_losses, EPOCHS)
